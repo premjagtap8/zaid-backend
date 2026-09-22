@@ -1,6 +1,7 @@
 import { registerSchema } from "./user.validation.js";
 import { registerUser } from "./user.service.js";
 import * as userService from "./user.service.js";
+import User from "./user.model.js";
 
 // ===============================
 // Create User
@@ -657,6 +658,8 @@ export const resendEmailVerificationOtp = async (
     });
   }
 };
+
+
 export const changepassword = async (req, res) => {
   try {
     const userId = req.user.id;

@@ -125,11 +125,13 @@ export const createWalkInRentalService = async (
 // RENTAL DURATION
 // =============================================
 
-const rentalDurationType =
-    String(data.rentalDurationType || "").toUpperCase();
+const rentalDurationType ="MONTHS"
+    //String(data.rentalDurationType || "").toUpperCase();
 
 const rentalDuration =
-    Number(data.rentalDuration || 0);
+    Number(data.rentalMonths || 0);
+
+    const rentalMonths = rentalDuration;  // ✅ ADD THIS LINE
 
 if (!["DAYS", "MONTHS"].includes(rentalDurationType)) {
     throw new Error(
@@ -408,6 +410,8 @@ if (rentalDurationType === "MONTHS") {
             gstPercentage,
 
             securityDeposit,
+             rentalDurationType,   // ✅ ADD THIS
+        rentalDuration,       // ✅ ADD THIS
 
             // rentalMonths,
 

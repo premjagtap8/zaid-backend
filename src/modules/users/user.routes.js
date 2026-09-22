@@ -87,7 +87,7 @@ router.put(
 router.get(
   "/employees",
   verifyToken,
-  allowRoles("SUPER_ADMIN", "ADMIN"),
+  allowRoles("SUPER_ADMIN", "ADMIN","HR_EXECUTIVE"),
   getEmployees
 );
 
@@ -120,6 +120,8 @@ router.get(
   allowRoles("SUPER_ADMIN", "ADMIN"),
   getUserById
 );
+
+router.put("/change-password", verifyToken, changepassword);
 
 // Update User
 router.put(
@@ -212,6 +214,6 @@ router.post(
   "/resend-verification-otp",
   resendEmailVerificationOtp
 );
-router.put("/change-password", verifyToken, changepassword);
+
 
 export default router;

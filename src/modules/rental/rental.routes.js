@@ -53,7 +53,7 @@ router.get(
 
 router.get(
     "/product/:productId",
-    verifyToken,
+    //verifyToken,
     getRentalProductController
 );
 

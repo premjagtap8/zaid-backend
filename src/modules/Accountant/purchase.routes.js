@@ -1,4 +1,3 @@
-
 import express from "express";
 
 import {
@@ -12,8 +11,12 @@ import {
 } from "./purchase.controller.js";
 
 import { verifyToken } from "../../common/middleware/auth.middleware.js";
+
 import { allowRoles } from "../../common/middleware/role.middleware.js";
+
 import { ROLES } from "../../common/constants/roles.js";
+
+import { paymentSlipUpload } from "../../common/middleware/upload.middleware.js";
 
 
 const router =
@@ -28,13 +31,11 @@ const router =
 router.post(
   "/",
   verifyToken,
-
   allowRoles(
     ROLES.ADMIN,
     ROLES.INVENTORY,
     ROLES.SALES
   ),
-
   createPurchaseController
 );
 
@@ -47,14 +48,12 @@ router.post(
 router.get(
   "/",
   verifyToken,
-
   allowRoles(
     ROLES.ADMIN,
     ROLES.ACCOUNTANT,
     ROLES.INVENTORY,
-     ROLES.SALES
+    ROLES.SALES
   ),
-
   getAllPurchasesController
 );
 
@@ -67,12 +66,10 @@ router.get(
 router.get(
   "/pending-payments",
   verifyToken,
-
   allowRoles(
     ROLES.ADMIN,
     ROLES.SALES
   ),
-
   getPendingVendorPaymentsController
 );
 
@@ -84,14 +81,12 @@ router.get(
 router.get(
   "/:purchaseId",
   verifyToken,
-
   allowRoles(
     ROLES.ADMIN,
     ROLES.ACCOUNTANT,
     ROLES.INVENTORY,
-     ROLES.SALES
+    ROLES.SALES
   ),
-
   getPurchaseController
 );
 
@@ -104,12 +99,10 @@ router.get(
 router.put(
   "/:purchaseId/verify",
   verifyToken,
-
   allowRoles(
     ROLES.ADMIN,
     ROLES.SALES
   ),
-
   verifyPurchaseController
 );
 
@@ -122,12 +115,11 @@ router.put(
 router.put(
   "/:purchaseId/payment",
   verifyToken,
-
   allowRoles(
     ROLES.ADMIN,
-     ROLES.SALES
+    ROLES.SALES
   ),
-
+  paymentSlipUpload.single("paymentSlip"),
   recordVendorPaymentController
 );
 
@@ -140,14 +132,11 @@ router.put(
 router.delete(
   "/:purchaseId",
   verifyToken,
-
   allowRoles(
     ROLES.ADMIN
   ),
-
   deletePurchaseController
 );
 
 
 export default router;
-

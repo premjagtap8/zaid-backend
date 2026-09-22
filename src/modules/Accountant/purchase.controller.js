@@ -1,4 +1,3 @@
-
 import {
   createPurchaseService,
   getPurchaseService,
@@ -174,14 +173,18 @@ export const verifyPurchaseController =
 // ======================================================
 
 export const recordVendorPaymentController =
+
   async (req, res) => {
+   
 
     try {
 
       const data =
         await recordVendorPaymentService(
           req.params.purchaseId,
-          req.body
+          req.body,
+          req.user._id,
+          req.file
         );
 
 
@@ -283,4 +286,3 @@ export const deletePurchaseController =
       });
     }
   };
-

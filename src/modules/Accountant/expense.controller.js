@@ -16,6 +16,9 @@ export const createExpenseController = async (
     res
 ) => {
 
+    console.log("control is inside the createExpenseController method")
+    console.log(req.body)
+
     try {
 
         const expense =

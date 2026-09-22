@@ -73,7 +73,6 @@ router.get(
     verifyToken,
 
     getCart
-
 );
 
 

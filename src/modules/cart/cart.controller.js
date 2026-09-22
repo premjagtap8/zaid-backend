@@ -517,6 +517,9 @@ export const getCart = async (
     res
 ) => {
 
+    console.log("inside getCart method")
+    console.log("control is inside getCart method")
+
     try {
 
         const cart =

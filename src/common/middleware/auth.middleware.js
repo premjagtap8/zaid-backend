@@ -9,6 +9,8 @@ import User from "../../modules/users/user.model.js";
 
 export const verifyToken = async (req, res, next) => {
 
+    console.log("control inside verifyToken")
+
     try {
 
         // =======================================
@@ -54,6 +56,9 @@ export const verifyToken = async (req, res, next) => {
             });
 
         }
+
+        console.log("retrieved the token successfully")
+        console.log(token)
 
 
         // =======================================
@@ -132,12 +137,17 @@ export const verifyToken = async (req, res, next) => {
             req.user._id
         );
 
+        console.log("user is authenticated successfully")
+
+        console.log("ABOUT TO CALL NEXT()");
 
         // =======================================
         // CONTINUE
         // =======================================
 
         next();
+
+        console.log("next is called")
 
     }
 

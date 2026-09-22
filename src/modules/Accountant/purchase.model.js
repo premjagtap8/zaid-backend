@@ -1,11 +1,16 @@
-
 import mongoose from "mongoose";
 
 const purchaseItemSchema = new mongoose.Schema(
   {
+    itemModel: {
+      type: String,
+      enum: ["Product", "RepairPart"],
+      default: "Product"
+    },
+
     product: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Product",
+      refPath: "itemModel",
       required: true
     },
 
@@ -37,9 +42,215 @@ const purchaseItemSchema = new mongoose.Schema(
       type: Number,
       required: true,
       min: 0
+    },
+
+    // NEW (optional): used by the printable invoice
+    hsnCode: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+
+    // NEW (optional): used by the printable invoice
+    unit: {
+      type: String,
+      trim: true,
+      default: "NOS"
     }
   },
   { _id: true }
+);
+
+
+// ======================================================
+// PAYMENT SCHEMA
+// ======================================================
+
+const paymentSchema = new mongoose.Schema(
+  {
+    paymentNumber: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+
+    amount: {
+      type: Number,
+      required: true,
+      min: 0.01
+    },
+
+    paymentMode: {
+      type: String,
+      enum: [
+        "CASH",
+        "UPI",
+        "BANK_TRANSFER",
+        "CHEQUE",
+        "CARD",
+        "OTHER"
+      ],
+      required: true
+    },
+
+    // --------------------------------------------------
+    // UPI DETAILS
+    // --------------------------------------------------
+
+    upiApp: {
+      type: String,
+      enum: [
+        "PHONEPE",
+        "GOOGLE_PAY",
+        "PAYTM",
+        "OTHER"
+      ],
+      default: null
+    },
+
+    utrNumber: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+
+    transactionReference: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+
+    // --------------------------------------------------
+    // BANK TRANSFER DETAILS
+    // --------------------------------------------------
+
+    bankName: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+
+    bankReference: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+
+    transferType: {
+      type: String,
+      enum: [
+        "NEFT",
+        "RTGS",
+        "IMPS",
+        "OTHER"
+      ],
+      default: null
+    },
+
+    // --------------------------------------------------
+    // CHEQUE DETAILS
+    // --------------------------------------------------
+
+    chequeNumber: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+
+    chequeDate: {
+      type: Date,
+      default: null
+    },
+
+    // --------------------------------------------------
+    // CASH DETAILS
+    // --------------------------------------------------
+
+    receiptNumber: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+
+    // --------------------------------------------------
+    // PAYMENT SLIP
+    // --------------------------------------------------
+
+    paymentSlip: {
+      fileName: {
+        type: String,
+        default: ""
+      },
+
+      fileUrl: {
+        type: String,
+        default: ""
+      },
+
+      originalName: {
+        type: String,
+        default: ""
+      },
+
+      mimeType: {
+        type: String,
+        default: ""
+      },
+
+      uploadedAt: {
+        type: Date,
+        default: null
+      }
+    },
+
+    // --------------------------------------------------
+    // PAYMENT DATE / STATUS
+    // --------------------------------------------------
+
+    paymentDate: {
+      type: Date,
+      default: Date.now
+    },
+
+    transactionStatus: {
+      type: String,
+      enum: [
+        "SUCCESS",
+        "PENDING",
+        "FAILED",
+        "REVERSED"
+      ],
+      default: "SUCCESS"
+    },
+
+    // --------------------------------------------------
+    // PAYMENT NOTES
+    // --------------------------------------------------
+
+    notes: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+
+    // --------------------------------------------------
+    // AUDIT INFORMATION
+    // --------------------------------------------------
+
+    recordedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true
+    },
+
+    recordedAt: {
+      type: Date,
+      default: Date.now
+    }
+  },
+  {
+    _id: true
+  }
 );
 
 
@@ -49,6 +260,13 @@ const purchaseSchema = new mongoose.Schema(
       type: String,
       unique: true,
       index: true
+    },
+
+    // Optional link to a Procurement purchase order
+    purchaseOrder: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "PurchaseOrder",
+      default: null
     },
 
     vendorName: {
@@ -70,6 +288,32 @@ const purchaseSchema = new mongoose.Schema(
     },
 
     vendorInvoiceNumber: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+
+    // NEW (optional): vendor details copied onto the bill for the invoice
+    vendorGstNumber: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+
+    vendorAddress: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+
+    vendorState: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+
+    // NEW (optional): PO number saved as text (purchaseOrder stays an id)
+    purchaseOrderNumber: {
       type: String,
       trim: true,
       default: ""
@@ -125,6 +369,15 @@ const purchaseSchema = new mongoose.Schema(
       default: "PENDING"
     },
 
+    // ==================================================
+    // PAYMENT HISTORY
+    // ==================================================
+
+    payments: {
+      type: [paymentSchema],
+      default: []
+    },
+
     verified: {
       type: Boolean,
       default: false
@@ -164,15 +417,42 @@ const purchaseSchema = new mongoose.Schema(
 );
 
 
-purchaseSchema.pre("save", async function (next) {
+// ======================================================
+// PURCHASE ORDER UNIQUE INDEX
+// ======================================================
+
+// Allow only one active bill per purchase order.
+// Old bills, manual bills and deleted bills are ignored
+// by this index.
+
+purchaseSchema.index(
+  { purchaseOrder: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      purchaseOrder: { $type: "objectId" },
+      isDeleted: false
+    }
+  }
+);
+
+
+// ======================================================
+// PURCHASE NUMBER GENERATION
+// ======================================================
+
+purchaseSchema.pre("save", async function () {
+  if (!this.purchaseOrder && false) {}
+
   if (!this.purchaseNumber) {
-    const count = await mongoose.model("Purchase").countDocuments();
+    const count =
+      await mongoose
+        .model("Purchase")
+        .countDocuments();
 
     this.purchaseNumber =
       `PUR${String(count + 1).padStart(6, "0")}`;
   }
-
-  next();
 });
 
 
@@ -180,4 +460,3 @@ export default mongoose.model(
   "Purchase",
   purchaseSchema
 );
-

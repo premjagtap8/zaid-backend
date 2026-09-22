@@ -1,6 +1,8 @@
-
+import mongoose from "mongoose";
 import Purchase from "./purchase.model.js";
 import Product from "../products/product.model.js";
+import RepairPart from "../repair/repairparts/repairParts.model.js";
+import { PurchaseOrder } from "../Procurementt/purchaseOrder.model.js";
 
 
 // ======================================================
@@ -25,6 +27,64 @@ export const createPurchaseService = async (
   }
 
 
+  // ------------------------------------------------------
+  // OPTIONAL: validate + link a Purchase Order
+  // Behaviour is unchanged when data.purchaseOrder is not sent
+  // ------------------------------------------------------
+
+  let linkedPurchaseOrderId = null;
+
+  // NEW: PO number saved as text on the bill
+  let linkedPurchaseOrderNumber = "";
+
+  if (data.purchaseOrder) {
+
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        data.purchaseOrder
+      )
+    ) {
+      throw new Error(
+        "Invalid purchase order id"
+      );
+    }
+
+    const po =
+      await PurchaseOrder.findOne({
+        _id: data.purchaseOrder,
+        isDeleted: false
+      });
+
+    if (!po) {
+      throw new Error(
+        "Purchase order not found"
+      );
+    }
+
+    if (po.status !== "RECEIVED") {
+      throw new Error(
+        "Only a received purchase order can be billed"
+      );
+    }
+
+    const existingBill =
+      await Purchase.findOne({
+        purchaseOrder: po._id,
+        isDeleted: false
+      });
+
+    if (existingBill) {
+      throw new Error(
+        "A bill already exists for this purchase order"
+      );
+    }
+
+    linkedPurchaseOrderId = po._id;
+
+    linkedPurchaseOrderNumber = po.poNumber || "";
+  }
+
+
   const items = [];
 
   let subtotal = 0;
@@ -33,14 +93,29 @@ export const createPurchaseService = async (
 
   for (const item of data.items) {
 
+    const itemModel =
+      item.itemModel === "RepairPart"
+        ? "RepairPart"
+        : "Product";
+
+    const Model =
+      itemModel === "RepairPart"
+        ? RepairPart
+        : Product;
+
     const product =
-      await Product.findById(item.product);
+      await Model.findById(item.product);
 
     if (!product) {
       throw new Error(
-        `Product not found: ${item.product}`
+        `${itemModel === "RepairPart" ? "Repair part" : "Product"} not found: ${item.product}`
       );
     }
+
+    const displayName =
+      itemModel === "RepairPart"
+        ? product.partName
+        : product.name;
 
 
     const quantity =
@@ -51,7 +126,7 @@ export const createPurchaseService = async (
       quantity <= 0
     ) {
       throw new Error(
-        `Invalid quantity for ${product.name}`
+        `Invalid quantity for ${displayName}`
       );
     }
 
@@ -59,14 +134,16 @@ export const createPurchaseService = async (
     const purchasePrice =
       Number(
         item.purchasePrice ??
-        product.pricing?.purchasePrice ??
+        (itemModel === "RepairPart"
+          ? product.purchaseCost
+          : product.pricing?.purchasePrice) ??
         0
       );
 
 
     if (purchasePrice < 0) {
       throw new Error(
-        `Invalid purchase price for ${product.name}`
+        `Invalid purchase price for ${displayName}`
       );
     }
 
@@ -74,7 +151,9 @@ export const createPurchaseService = async (
     const gst =
       Number(
         item.gst ??
-        product.pricing?.gst ??
+        (itemModel === "RepairPart"
+          ? 0
+          : product.pricing?.gst) ??
         0
       );
 
@@ -97,10 +176,12 @@ export const createPurchaseService = async (
 
 
     items.push({
+      itemModel,
+
       product: product._id,
 
       productName:
-        product.name,
+        displayName,
 
       quantity,
 
@@ -109,7 +190,14 @@ export const createPurchaseService = async (
       gst,
 
       totalAmount:
-        itemTotal
+        itemTotal,
+
+      // NEW (optional)
+      hsnCode:
+        item.hsnCode || "",
+
+      unit:
+        item.unit || "NOS"
     });
   }
 
@@ -118,53 +206,85 @@ export const createPurchaseService = async (
     subtotal + gstAmount;
 
 
-  const purchase =
-    await Purchase.create({
+  try {
 
-      vendorName:
-        data.vendorName,
+    const purchase =
+      await Purchase.create({
 
-      vendorPhone:
-        data.vendorPhone || "",
+        vendorName:
+          data.vendorName,
 
-      vendorEmail:
-        data.vendorEmail || "",
+        vendorPhone:
+          data.vendorPhone || "",
 
-      vendorInvoiceNumber:
-        data.vendorInvoiceNumber || "",
+        vendorEmail:
+          data.vendorEmail || "",
 
-      invoiceDate:
-        data.invoiceDate || new Date(),
+        vendorInvoiceNumber:
+          data.vendorInvoiceNumber || "",
 
-      items,
+        // NEW (optional)
+        vendorGstNumber:
+          data.vendorGstNumber || "",
 
-      subtotal,
+        vendorAddress:
+          data.vendorAddress || "",
 
-      gstAmount,
+        vendorState:
+          data.vendorState || "",
 
-      totalAmount,
+        purchaseOrderNumber:
+          linkedPurchaseOrderNumber,
 
-      paidAmount:
-        0,
+        invoiceDate:
+          data.invoiceDate || new Date(),
 
-      pendingAmount:
+        items,
+
+        subtotal,
+
+        gstAmount,
+
         totalAmount,
 
-      paymentStatus:
-        "PENDING",
+        paidAmount:
+          0,
 
-      verified:
-        false,
+        pendingAmount:
+          totalAmount,
 
-      notes:
-        data.notes || "",
+        paymentStatus:
+          "PENDING",
 
-      createdBy:
-        userId
-    });
+        payments:
+          [],
+
+        verified:
+          false,
+
+        notes:
+          data.notes || "",
+
+        createdBy:
+          userId,
+
+        purchaseOrder:
+          linkedPurchaseOrderId
+      });
 
 
-  return purchase;
+    return purchase;
+
+  } catch (err) {
+
+    if (err.code === 11000) {
+      throw new Error(
+        "A bill already exists for this purchase order"
+      );
+    }
+
+    throw err;
+  }
 };
 
 
@@ -181,8 +301,7 @@ export const getPurchaseService =
         isDeleted: false
       })
         .populate(
-          "items.product",
-          "name sku pricing"
+          "items.product"
         )
         .populate(
           "createdBy",
@@ -190,6 +309,10 @@ export const getPurchaseService =
         )
         .populate(
           "verifiedBy",
+          "firstName lastName email"
+        )
+        .populate(
+          "payments.recordedBy",
           "firstName lastName email"
         );
 
@@ -302,7 +425,9 @@ export const verifyPurchaseService =
 export const recordVendorPaymentService =
   async (
     purchaseId,
-    data
+    data,
+    userId,
+    paymentFile
   ) => {
 
     const purchase =
@@ -356,6 +481,182 @@ export const recordVendorPaymentService =
     }
 
 
+    // --------------------------------------------------
+    // VALIDATE PAYMENT MODE
+    // --------------------------------------------------
+
+    const allowedPaymentModes = [
+      "CASH",
+      "UPI",
+      "BANK_TRANSFER",
+      "CHEQUE",
+      "CARD",
+      "OTHER"
+    ];
+
+
+    const paymentMode =
+      data.paymentMode || "CASH";
+
+
+    if (
+      !allowedPaymentModes.includes(
+        paymentMode
+      )
+    ) {
+      throw new Error(
+        "Invalid payment mode"
+      );
+    }
+
+
+    // --------------------------------------------------
+    // VALIDATE UTR
+    // --------------------------------------------------
+
+    /*
+      UTR is optional.
+
+      This is important because existing accountant
+      payments such as CASH can continue without a UTR.
+
+      If a UTR is provided, we normalize it and check
+      the entire Purchase collection to make sure the
+      same UTR has not already been used.
+    */
+
+    const utrNumber =
+      String(
+        data.utrNumber || ""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    if (utrNumber) {
+
+      const existingPayment =
+        await Purchase.findOne({
+          isDeleted: false,
+          "payments.utrNumber": utrNumber
+        });
+
+
+      if (existingPayment) {
+        throw new Error(
+          "This UTR number has already been used for another payment"
+        );
+      }
+    }
+
+
+    // --------------------------------------------------
+    // PAYMENT SLIP
+    // --------------------------------------------------
+
+    let paymentSlip = {
+      fileName: "",
+      fileUrl: "",
+      originalName: "",
+      mimeType: "",
+      uploadedAt: null
+    };
+
+
+    if (paymentFile) {
+
+      paymentSlip = {
+
+        fileName:
+          paymentFile.filename,
+
+        fileUrl:
+          `/uploads/payment-slips/${paymentFile.filename}`,
+
+        originalName:
+          paymentFile.originalname,
+
+        mimeType:
+          paymentFile.mimetype,
+
+        uploadedAt:
+          new Date()
+      };
+    }
+
+
+    // --------------------------------------------------
+    // CREATE PAYMENT RECORD
+    // --------------------------------------------------
+
+    const paymentRecord = {
+
+      paymentNumber:
+        data.paymentNumber || "",
+
+      amount:
+        paymentAmount,
+
+      paymentMode,
+
+      upiApp:
+        data.upiApp || null,
+
+      utrNumber,
+
+      transactionReference:
+        data.transactionReference || "",
+
+      bankName:
+        data.bankName || "",
+
+      bankReference:
+        data.bankReference || "",
+
+      transferType:
+        data.transferType || null,
+
+      chequeNumber:
+        data.chequeNumber || "",
+
+      chequeDate:
+        data.chequeDate || null,
+
+      receiptNumber:
+        data.receiptNumber || "",
+
+      paymentSlip,
+
+      paymentDate:
+        data.paymentDate || new Date(),
+
+      transactionStatus:
+        data.transactionStatus || "SUCCESS",
+
+      notes:
+        data.notes || "",
+
+      recordedBy:
+        userId,
+
+      recordedAt:
+        new Date()
+    };
+
+
+    // --------------------------------------------------
+    // ADD PAYMENT TO PAYMENT HISTORY
+    // --------------------------------------------------
+
+    purchase.payments.push(
+      paymentRecord
+    );
+
+
+    // --------------------------------------------------
+    // UPDATE PAYMENT TOTALS
+    // --------------------------------------------------
+
     purchase.paidAmount =
       currentPaid + paymentAmount;
 
@@ -379,22 +680,9 @@ export const recordVendorPaymentService =
     }
 
 
-    // Payment information is stored
-    // in purchase notes for now.
-    // Later this can be connected
-    // to the shared Payment collection.
-
-    const paymentNote =
-      `Vendor Payment: ₹${paymentAmount} | ` +
-      `Mode: ${data.paymentMode || "CASH"} | ` +
-      `Date: ${data.paymentDate || new Date().toISOString()}`;
-
-
-    purchase.notes =
-      purchase.notes
-        ? `${purchase.notes}\n${paymentNote}`
-        : paymentNote;
-
+    // --------------------------------------------------
+    // SAVE
+    // --------------------------------------------------
 
     await purchase.save();
 
@@ -457,4 +745,3 @@ export const deletePurchaseService =
 
     return purchase;
   };
-
