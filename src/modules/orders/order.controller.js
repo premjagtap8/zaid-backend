@@ -1,6 +1,5 @@
 
 
-
 import * as orderService
   from "./order.service.js";
 
@@ -70,8 +69,8 @@ export const createOrder = async (
 
           title:
             item.title,
-             couponCode:
-        req.body.couponCode || "",  
+          couponCode:
+            req.body.couponCode || "",
 
           quantity:
             Number(item.quantity),
@@ -90,6 +89,14 @@ export const createOrder = async (
 
           imageUrl:
             item.imageUrl || "",
+
+
+          // NEW — carry these through so buildSecureOrderItems() can detect quote-based items
+          quotationId:
+            item.quotationId || null,
+
+          itemId:
+            item.itemId || null,
 
         })
       );
@@ -123,42 +130,34 @@ export const createOrder = async (
 
     const orderData = {
 
-    orderItems,
+      orderItems,
 
-    shippingAddress,
+      shippingAddress,
 
-    totalAmount:
+      totalAmount:
         Number(req.body.totalAmount),
 
- couponCode:
-        req.body.couponCode || "",  
+      couponCode:
+        req.body.couponCode || "",
 
 
-    paymentMethod:
+      paymentMethod:
         req.body.paymentMethod || "CASH",
 
 
-    paymentStatus:
-        "PAID",
+      orderSource,
 
 
-    orderStatus:
-        "CONFIRMED",
-
-
-    orderSource,
-
-
-    user:
+      user:
         userId,
 
 
-    soldBy:
+      soldBy:
         orderSource === "WALK_IN"
-            ? userId
-            : null
+          ? userId
+          : null
 
-};
+    };
 
 
     console.log(
@@ -352,17 +351,17 @@ export const updateOrderStatus =
 
 
       const order =
-await orderService.updateOrderStatus(
+        await orderService.updateOrderStatus(
 
-  req.params.id,
+          req.params.id,
 
-  req.body.status,
+          req.body.status,
 
-  req.user?._id || null,
+          req.user?._id || null,
 
-  req.body.message || ""
+          req.body.message || ""
 
-);
+        );
 
       return res.status(200).json({
 

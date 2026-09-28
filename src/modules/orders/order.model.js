@@ -123,6 +123,27 @@ const orderSchema = new mongoose.Schema(
           default: "",
         },
 
+
+        // ==============================
+        // NEW: Quotation reference
+        // (only present for quote-based corporate orders;
+        // stays null/undefined for every normal order)
+        // ==============================
+        quotationRef: {
+
+          quotationId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Quotation",
+            default: null,
+          },
+
+          itemId: {
+            type: mongoose.Schema.Types.ObjectId,
+            default: null,
+          },
+
+        },
+
       },
 
     ],

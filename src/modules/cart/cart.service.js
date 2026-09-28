@@ -621,40 +621,30 @@ const getAvailableStock = async (productId) => {
 // ======================================================
 // HELPER: GET PRODUCT PRICE
 // ======================================================
+const getProductPrice = (productData, customerType) => {
+    const pricing = productData?.pricing || {};
 
-const getProductPrice = (productData) => {
+    const retailPrice = Number(pricing.retailPrice);
+    const wholesalePrice = Number(pricing.wholesalePrice);
+
+    const isBusiness =
+        String(customerType || "").toUpperCase() === "BUSINESS";
 
     const sellingPrice =
-        Number(
-            productData?.pricing?.sellingPrice
-        );
+        isBusiness && Number.isFinite(wholesalePrice) && wholesalePrice > 0
+            ? wholesalePrice
+            : retailPrice;
 
-    const mrp =
-        Number(
-            productData?.pricing?.mrp ??
-            sellingPrice
-        );
+    const mrp = Number(pricing.mrp ?? sellingPrice);
 
-    if (
-        !Number.isFinite(sellingPrice) ||
-        sellingPrice < 0
-    ) {
-
-        throw new Error(
-            "Product selling price is invalid"
-        );
+    if (!Number.isFinite(sellingPrice) || sellingPrice < 0) {
+        throw new Error("Product selling price is invalid");
     }
-
-    const discountAmount =
-        Math.max(
-            mrp - sellingPrice,
-            0
-        );
 
     return {
         sellingPrice,
         mrp,
-        discountAmount
+        discountAmount: Math.max(mrp - sellingPrice, 0)
     };
 };
 
@@ -665,7 +655,8 @@ const getProductPrice = (productData) => {
 
 export const addToCartService = async (
     userId,
-    data
+    data,
+    customerType
 ) => {
 
     console.log(
@@ -758,15 +749,16 @@ export const addToCartService = async (
         mrp,
         discountAmount
     } = getProductPrice(
-        productData
+        productData,
+        customerType
     );
     const {
-    finalPrice,
-    appliedOffer
-} = await getOfferAppliedPrice(
-    productData,
-    sellingPrice
-);
+        finalPrice,
+        appliedOffer
+    } = await getOfferAppliedPrice(
+        productData,
+        sellingPrice
+    );
 
     console.log(
         "PRODUCT PRICE:",
@@ -848,49 +840,49 @@ export const addToCartService = async (
     // --------------------------------------------------
     // 10. EXISTING PRODUCT
     // --------------------------------------------------
-if (existingItem) {
+    if (existingItem) {
 
-    const newQuantity =
-        Number(existingItem.quantity || 0) + qty;
+        const newQuantity =
+            Number(existingItem.quantity || 0) + qty;
 
-    if (
-        availableStock !== null &&
-        newQuantity > availableStock
-    ) {
-        throw new Error(
-            `Only ${availableStock} item(s) available`
-        );
+        if (
+            availableStock !== null &&
+            newQuantity > availableStock
+        ) {
+            throw new Error(
+                `Only ${availableStock} item(s) available`
+            );
+        }
+
+        existingItem.quantity = newQuantity;
+        existingItem.price = sellingPrice;
+        existingItem.originalPrice = mrp;
+        existingItem.discountAmount = discountAmount;
+
+        // CHANGED: ab offer applied price save hoga
+        existingItem.finalPrice = finalPrice;
+        existingItem.appliedOffer = appliedOffer;
     }
-
-    existingItem.quantity = newQuantity;
-    existingItem.price = sellingPrice;
-    existingItem.originalPrice = mrp;
-    existingItem.discountAmount = discountAmount;
-
-    // CHANGED: ab offer applied price save hoga
-    existingItem.finalPrice = finalPrice;
-    existingItem.appliedOffer = appliedOffer;
-}
 
     // --------------------------------------------------
     // 11. NEW PRODUCT
     // --------------------------------------------------
 
-   else {
+    else {
 
-    cart.items.push({
+        cart.items.push({
 
-        product: productData._id,
-        quantity: qty,
-        price: sellingPrice,
-        originalPrice: mrp,
-        discountAmount: discountAmount,
+            product: productData._id,
+            quantity: qty,
+            price: sellingPrice,
+            originalPrice: mrp,
+            discountAmount: discountAmount,
 
-        // CHANGED
-        finalPrice: finalPrice,
-        appliedOffer: appliedOffer
-    });
-}
+            // CHANGED
+            finalPrice: finalPrice,
+            appliedOffer: appliedOffer
+        });
+    }
 
     // --------------------------------------------------
     // 12. SAVE CART
@@ -977,7 +969,8 @@ export const getCartService = async (
 export const updateCartQuantityService = async (
     userId,
     productId,
-    quantity
+    quantity,
+    customerType
 ) => {
 
     // --------------------------------------------------
@@ -1102,28 +1095,30 @@ export const updateCartQuantityService = async (
         mrp,
         discountAmount
     } = getProductPrice(
-        productData
+        productData,
+        customerType
+
     );
 
-  const {
-    finalPrice,
-    appliedOffer
-} = await getOfferAppliedPrice(
-    productData,
-    sellingPrice
-);
+    const {
+        finalPrice,
+        appliedOffer
+    } = await getOfferAppliedPrice(
+        productData,
+        sellingPrice
+    );
     // --------------------------------------------------
     // UPDATE ITEM
     // --------------------------------------------------
 
-item.quantity = qty;
-item.price = sellingPrice;
-item.originalPrice = mrp;
-item.discountAmount = discountAmount;
+    item.quantity = qty;
+    item.price = sellingPrice;
+    item.originalPrice = mrp;
+    item.discountAmount = discountAmount;
 
-// CHANGED
-item.finalPrice = finalPrice;
-item.appliedOffer = appliedOffer;
+    // CHANGED
+    item.finalPrice = finalPrice;
+    item.appliedOffer = appliedOffer;
 
     // --------------------------------------------------
     // SAVE

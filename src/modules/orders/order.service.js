@@ -1,4 +1,3 @@
-
 import User from "../users/user.model.js";
 
 import * as orderRepository from "./order.repository.js";
@@ -33,12 +32,17 @@ import {
   incrementCouponUsageService
 } from "../coupons/coupon.service.js";
 
+// ==============================
+// NEW: Quotation imports (for quote-based corporate pricing)
+// ==============================
+import Quotation from "../Quotation/quotation.model.js";
+import { markQuotationItemUsedService } from "../Quotation/quotation.service.js";
+
 
 // ======================================================
 // HELPER: BUILD SECURE ORDER ITEMS
 // ======================================================
-
-const buildSecureOrderItems = async (rawItems) => {
+const buildSecureOrderItems = async (rawItems, customerType) => {
 
   if (
     !rawItems ||
@@ -53,6 +57,12 @@ const buildSecureOrderItems = async (rawItems) => {
   const secureItems = [];
 
   let totalAmount = 0;
+
+  // ==============================
+  // NEW: collect quotation item refs used in this order,
+  // so we can mark them "Used" after the order is created
+  // ==============================
+  const quotationRefs = [];
 
   for (const item of rawItems) {
 
@@ -70,17 +80,69 @@ const buildSecureOrderItems = async (rawItems) => {
     }
 
     // -----------------------------------------------
-    // SECURE PRICE FROM DATABASE
+    // NEW: QUOTE-BASED PRICE (only runs when the request
+    // explicitly includes quotationId + itemId for this item)
     // -----------------------------------------------
 
-    const originalPrice =
-      Number(
-        productData.pricing?.sellingPrice || 0
+    let originalPrice;
+    let quotationItemRef = null;
+
+    if (item.quotationId && item.itemId) {
+
+      const quotation = await Quotation.findById(item.quotationId);
+
+      if (!quotation) {
+        throw new Error("Quotation not found");
+      }
+
+      const quoteItem = quotation.items.id(item.itemId);
+
+      if (!quoteItem) {
+        throw new Error("Quotation item not found");
+      }
+
+      if (String(quoteItem.product) !== String(productData._id)) {
+        throw new Error(
+          `Quotation item does not match product: ${productData.name}`
+        );
+      }
+
+      if (quoteItem.status !== "Approved") {
+        throw new Error(
+          `Quote for ${productData.name} is not approved or already used`
+        );
+      }
+
+      originalPrice = Number(quoteItem.finalPrice);
+
+      quotationItemRef = {
+        quotationId: item.quotationId,
+        itemId: item.itemId
+      };
+
+    } else {
+
+      // -----------------------------------------------
+      // EXISTING: SECURE PRICE FROM DATABASE (unchanged)
+      // BUSINESS -> wholesale, everyone else -> retail
+      // Old products fall back to sellingPrice
+      // -----------------------------------------------
+
+      const pricing = productData.pricing || {};
+      const isBusiness = customerType === "BUSINESS";
+
+      originalPrice = Number(
+        (isBusiness ? pricing.wholesalePrice : pricing.retailPrice) ||
+          pricing.retailPrice ||
+          pricing.sellingPrice ||
+          0
       );
 
-    if (originalPrice < 0) {
+    }
+
+    if (originalPrice <= 0) {
       throw new Error(
-        `Invalid price for product: ${productData.name}`
+        `Price not set for product: ${productData.name}`
       );
     }
 
@@ -102,25 +164,35 @@ const buildSecureOrderItems = async (rawItems) => {
 
     // -----------------------------------------------
     // ACTIVE OFFER
+    // NEW: skip offers/discounts for quote-based items —
+    // the price was already negotiated and approved
     // -----------------------------------------------
 
-    const offer =
-      matchOfferToProduct(
-        productData,
-        activeOffers
-      );
+    let offer = null;
+    let finalPrice = originalPrice;
+    let discountAmount = 0;
 
-    const finalPrice =
-      calculateDiscountedPrice(
-        originalPrice,
-        offer
-      );
+    if (!quotationItemRef) {
 
-    const discountAmount =
-      Math.max(
-        originalPrice - finalPrice,
-        0
-      );
+      offer =
+        matchOfferToProduct(
+          productData,
+          activeOffers
+        );
+
+      finalPrice =
+        calculateDiscountedPrice(
+          originalPrice,
+          offer
+        );
+
+      discountAmount =
+        Math.max(
+          originalPrice - finalPrice,
+          0
+        );
+
+    }
 
     // -----------------------------------------------
     // SECURE ORDER ITEM
@@ -152,17 +224,26 @@ const buildSecureOrderItems = async (rawItems) => {
         : null,
 
       imageUrl:
-        productData.images?.[0]?.url || ""
+        productData.images?.[0]?.url || "",
+
+      // NEW: optional, only present for quote-based items
+      quotationRef: quotationItemRef
 
     });
 
     totalAmount +=
       finalPrice * quantity;
+
+    // NEW: track for post-creation "mark Used" step
+    if (quotationItemRef) {
+      quotationRefs.push(quotationItemRef);
+    }
   }
 
   return {
     secureItems,
-    totalAmount
+    totalAmount,
+    quotationRefs // NEW
   };
 };
 
@@ -179,10 +260,6 @@ export const createOrder = async (
   // ==========================================
   // GET CUSTOMER
   // ==========================================
-
- // ==========================================
-// GET CUSTOMER
-// ==========================================
 
 const customer = await User.findById(
   orderData.user
@@ -242,10 +319,12 @@ orderData.orderType =
 
   const {
     secureItems,
-    totalAmount
+    totalAmount,
+    quotationRefs // NEW
   } =
     await buildSecureOrderItems(
-      orderData.orderItems
+      orderData.orderItems,
+        customer.customerType
     );
 
 
@@ -432,6 +511,37 @@ orderData.orderType =
     await orderRepository.createOrder(
       orderData
     );
+
+
+  // ====================================================
+  // NEW: MARK USED QUOTATION ITEMS
+  // (never breaks order creation if this fails)
+  // ====================================================
+
+  if (quotationRefs && quotationRefs.length > 0) {
+
+    try {
+
+      for (const ref of quotationRefs) {
+
+        await markQuotationItemUsedService(
+          ref.quotationId,
+          ref.itemId
+        );
+
+      }
+
+    }
+    catch (quotationError) {
+
+      console.error(
+        "QUOTATION MARK USED ERROR:",
+        quotationError
+      );
+
+    }
+
+  }
 
 
   // ====================================================

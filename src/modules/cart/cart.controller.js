@@ -462,11 +462,9 @@ export const addToCart = async (
 
         const cart =
             await addToCartService(
-
                 req.user.id,
-
-                req.body
-
+                req.body,
+                req.user.customerType
             );
 
 
@@ -591,10 +589,11 @@ export const updateCartQuantity = async (
 
                 productId,
 
-                Number(quantity)
+                Number(quantity),
+
+                req.user.customerType
 
             );
-
 
         return successResponse(
 

@@ -35,6 +35,20 @@ import receptionistRoutes from "./modules/receptionist/receptionist.routes.js";
 import refundRoutes from "./modules/refund/refund.routes.js";
 import returnRoutes from "./modules/return/return.routes.js";
 import blueDartRoutes  from "./modules/blueDart/blueDart.routes.js";
+
+
+// ==============================
+// NEW: Procurement Routes
+// ==============================
+
+import vendorRoutes from "./modules/Procurementt/vendor.routes.js";
+import purchaseOrderRoutes from "./modules/Procurementt/purchaseOrder.routes.js";
+
+// ==============================
+// NEW: Quotation Module Import
+// ==============================
+import quotationRoutes from "./modules/Quotation/quotation.routes.js";
+
 const app = express();
 
 app.use(cors({
@@ -104,4 +118,24 @@ app.use("/api/financial-reports",financialReportsRoutes);
 app.use("/api/refunds",refundRoutes);
 app.use("/api/returns",returnRoutes);
 app.use("/api/blue-dart",blueDartRoutes);
+
+
+
+// ==============================
+// NEW: Procurement Routes
+// ==============================
+
+app.use("/api/procurement/vendors", vendorRoutes);
+
+app.use("/api/procurement/purchase-orders", purchaseOrderRoutes);
+
+
+
+
+
+// ==============================
+// NEW: Quotation Module Route
+// ==============================
+app.use("/api/quotations", quotationRoutes);
+
 export default app;

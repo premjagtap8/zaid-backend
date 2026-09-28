@@ -1,47 +1,3 @@
-// import express from "express";
-
-// import {
-//   createInvoice,
-//   getInvoiceById,
-//   getInvoiceByOrderId,
-//   getAllInvoices,
-// } from "./invoice.controller.js";
-
-// const router =
-//   express.Router();
-
-
-// // Create invoice
-// router.post(
-//   "/",
-//   createInvoice
-// );
-
-
-// // Get all invoices
-// router.get(
-//   "/",
-//   getAllInvoices
-// );
-
-
-// // Get invoice by order
-// router.get(
-//   "/order/:orderId",
-//   getInvoiceByOrderId
-// );
-
-
-// // Get invoice by ID
-// router.get(
-//   "/:id",
-//   getInvoiceById
-// );
-
-
-// export default router;
-
-
 import express from "express";
 
 import {
@@ -49,7 +5,10 @@ import {
   getInvoiceById,
   getInvoiceByOrderId,
   getAllInvoices,
+  getMyInvoices,
 } from "./invoice.controller.js";
+
+import { verifyToken } from "../../common/middleware/auth.middleware.js";
 
 const router = express.Router();
 
@@ -71,6 +30,20 @@ router.post(
 router.get(
   "/",
   getAllInvoices
+);
+
+// ==========================================
+// GET MY INVOICES (logged-in user only)
+// GET /api/invoices/my
+//
+// IMPORTANT: keep this ABOVE "/:id",
+// otherwise "my" is treated as an invoice ID.
+// ==========================================
+
+router.get(
+  "/my",
+  verifyToken,
+  getMyInvoices
 );
 
 // ==========================================

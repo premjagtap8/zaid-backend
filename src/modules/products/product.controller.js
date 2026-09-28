@@ -520,9 +520,13 @@ export const getProductById = async (
 
     try {
 
+        const customerType =
+            req.user?.customerType || "PERSONAL";   // ← ADD THIS
+
         const product =
             await getProductService(
-                req.params.id
+                req.params.id,
+                customerType                          // ← PASS IT
             );
 
 
@@ -792,6 +796,8 @@ export const getShopProducts = async (
 ) => {
 
     try {
+
+         console.log("LOGGED IN USER:", req.user);   // ADD THIS LINE
 
         console.log(
             "======================================"

@@ -74,6 +74,7 @@ export const loginService = async (body) => {
       phone: user.phone,
       role: user.role,
       status: user.status,
+      customerType: user.customerType,
       profileImage: user.profileImage,
     },
   };

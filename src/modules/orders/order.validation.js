@@ -1,5 +1,3 @@
-
-
 import Joi from "joi";
 
 import {
@@ -93,6 +91,23 @@ export const createOrderValidation = Joi.object({
         imageUrl: Joi.string()
           .allow(null, "")
           .default(""),
+
+        // ==================================================
+        // QUOTE-BASED ORDER FIELDS (NEW)
+        //
+        // Only present when this item comes from an approved
+        // corporate quotation (My Quotes → Place Order).
+        // Optional — normal cart checkout never sends these,
+        // so it is completely unaffected.
+        // ==================================================
+
+        quotationId: Joi.string()
+          .trim()
+          .optional(),
+
+        itemId: Joi.string()
+          .trim()
+          .optional(),
 
       })
 

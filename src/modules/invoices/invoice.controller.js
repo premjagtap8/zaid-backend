@@ -172,3 +172,60 @@ async (req, res) => {
 
   }
 };
+
+
+// ==========================================
+// GET MY INVOICES
+// Logged-in user only
+// ==========================================
+
+export const getMyInvoices =
+async (req, res) => {
+
+  try {
+
+    const userId =
+      req.user?._id ||
+      req.user?.id ||
+      req.user?.userId;
+
+    if (!userId) {
+
+      return res.status(401).json({
+
+        success: false,
+
+        message:
+          "Not authorized",
+
+      });
+
+    }
+
+    const invoices =
+      await invoiceService
+        .getMyInvoices(
+          userId
+        );
+
+    return res.status(200).json({
+
+      success: true,
+
+      data: invoices,
+
+    });
+
+  } catch (error) {
+
+    return res.status(500).json({
+
+      success: false,
+
+      message:
+        error.message,
+
+    });
+
+  }
+};

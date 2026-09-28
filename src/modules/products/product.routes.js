@@ -13,6 +13,8 @@ import {
     parseProductMultipartData
 } from "./product.controller.js";
 
+import { optionalAuth } from "../../common/middleware/Optionalauth.middleware.js";
+
 import {
     createProductValidation,
     updateProductValidation
@@ -128,6 +130,8 @@ router.get(
 
     "/shop",
 
+     optionalAuth,      // ← ADD THIS LINE
+
     getShopProducts
 
 );
@@ -165,6 +169,8 @@ router.get(
 router.get(
 
     "/:id",
+
+    optionalAuth,   // ← ADD THIS
 
     getProductById
 
